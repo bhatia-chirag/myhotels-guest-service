@@ -7,12 +7,13 @@ import com.myhotels.guestservice.repos.GuestRepo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.transaction.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
 @Service
-public class GuestServiceImpl implements GuestService{
+public class GuestServiceImpl implements GuestService {
 
     @Autowired
     private GuestRepo repo;
@@ -40,14 +41,15 @@ public class GuestServiceImpl implements GuestService{
         return repo.save(guest);
     }
 
+    @Transactional
     @Override
     public Guest updateGuest(Long phoneNumber, Map<String, String> params) {
         Guest updateGuest = repo.findByPhoneNumber(phoneNumber);
-        for (Entry<String, String> entry: params.entrySet()) {
+        if (updateGuest == null) {
+            throw new DataNotFoundException("No guest found with phone number: " + phoneNumber);
+        }
+        for (Entry<String, String> entry : params.entrySet()) {
             String value = entry.getValue();
-            if (value.isEmpty()) {
-                continue;
-            }
             switch (entry.getKey()) {
                 case "name":
                     updateGuest.setName(value);
@@ -56,20 +58,28 @@ public class GuestServiceImpl implements GuestService{
                     updateGuest.setAddress(value);
                     break;
                 case "phoneNumber":
-                    updateGuest.setPhoneNumber(Long.parseLong(value));
+                    if (value.isEmpty()) {
+                        throw new InvalidRequestException("Invalid request. Phone number cannot be empty");
+                    }
+                    try {
+                        updateGuest.setPhoneNumber(Long.parseLong(value));
+                    } catch (NumberFormatException numberFormatException) {
+                        throw new InvalidRequestException("Invalid requst. Cause:" + numberFormatException.getMessage());
+                    }
                     break;
                 default:
-                    throw new InvalidRequestException("Invalid request parameter: "+entry.getKey());
+                    throw new InvalidRequestException("Invalid request parameter: " + entry.getKey());
             }
         }
         return repo.save(updateGuest);
     }
 
+    @Transactional
     @Override
     public void deleteGuest(Long phoneNumber) {
         Guest guest = repo.findByPhoneNumber(phoneNumber);
         if (guest == null) {
-            throw new DataNotFoundException("No guest found with phone number: "+ phoneNumber);
+            throw new DataNotFoundException("No guest found with phone number: " + phoneNumber);
         }
         repo.delete(guest);
     }
